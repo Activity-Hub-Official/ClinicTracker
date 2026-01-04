@@ -5,7 +5,27 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>detrans • Clinics Map</title>
 
-  <script src="https://cdn.tailwindcss.com"></script>
+  
+
+  <!-- Open Graph / Social Preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="detrans" />
+  <meta property="og:title" content="detrans • Clinics Map" />
+  <meta property="og:description" content="Interactive map of clinics offering HRT and/or surgery, with filters and a searchable list." />
+  <!-- IMPORTANT: Replace og:url with your real domain -->
+  <meta property="og:url" content="https://YOUR_DOMAIN_HERE/clinics_map.html" />
+  <meta property="og:image" content="https://i.imgur.com/i4TYVJE.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:alt" content="detrans • Clinics Map" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="detrans • Clinics Map" />
+  <meta name="twitter:description" content="Interactive map of clinics offering HRT and/or surgery, with filters and a searchable list." />
+  <meta name="twitter:image" content="https://i.imgur.com/i4TYVJE.png" />
+<script src="https://cdn.tailwindcss.com"></script>
 
   <link
     rel="stylesheet"
@@ -58,37 +78,22 @@
       animation: shimmer 1.1s ease-in-out infinite;
       transform: translateX(-60%);
     }
-
-    .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .list-pad { padding-right: 14px; }
   </style>
 </head>
 
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden">
   <header class="h-14 bg-white/90 backdrop-blur border-b border-slate-200 px-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-semibold tracking-tight">d</div>
       <div class="leading-tight">
-        <div class="text-sm font-semibold tracking-tight">
-          <span class="text-slate-900">de</span><span class="text-red-600">trans</span>
+        <div class="text-base sm:text-lg font-semibold tracking-tight leading-none">
+          <span class="text-blue-600">de</span><span class="text-slate-900">trans</span>
         </div>
-        <div class="text-[11px] text-slate-500 -mt-0.5">Clinic map</div>
       </div>
-    </div>
-
-    <div class="flex items-center gap-2 text-xs text-slate-500">
-      <span class="hidden sm:inline">Urgency:</span>
-      <span class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-1 text-red-800">
-        <span class="w-2 h-2 rounded-full bg-red-600 inline-block"></span> Surgery
-      </span>
-      <span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
-        <span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> HRT
-      </span>
     </div>
   </header>
 
   <div class="h-[calc(100vh-56px)] flex">
-    <aside class="w-[380px] max-w-[90vw] bg-white/90 backdrop-blur border-r border-slate-200 flex flex-col">
+    <aside class="w-[360px] max-w-[85vw] bg-white/90 backdrop-blur border-r border-slate-200 flex flex-col">
       <div class="px-5 pt-5 pb-4 border-b border-slate-200">
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -135,7 +140,7 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto px-3 py-3 list-pad">
+      <div class="flex-1 overflow-auto px-3 py-3">
         <div id="skeletonWrap" class="space-y-2">
           <div class="skeleton p-4"><div class="h-3 w-2/3 rounded bg-slate-200"></div><div class="mt-3 h-2 w-5/6 rounded bg-slate-200"></div><div class="mt-2 h-2 w-4/6 rounded bg-slate-200"></div></div>
           <div class="skeleton p-4"><div class="h-3 w-3/5 rounded bg-slate-200"></div><div class="mt-3 h-2 w-11/12 rounded bg-slate-200"></div><div class="mt-2 h-2 w-3/6 rounded bg-slate-200"></div></div>
@@ -145,12 +150,6 @@
         </div>
 
         <div id="list" class="space-y-2 hidden"></div>
-
-        <div id="debug" class="hidden mt-3 text-[11px] text-slate-500"></div>
-      </div>
-
-      <div class="px-5 py-4 border-t border-slate-200 text-xs text-slate-500">
-        Matching rule: values that start with “Yes” count as Yes (e.g., “Yes/Unlisted”, “Yes (varies by site)”). Coords parsed even if annotated.
       </div>
     </aside>
 
@@ -167,42 +166,21 @@
     const $ = (id) => document.getElementById(id);
     const safeStr = (v) => (v == null ? "" : String(v)).trim();
 
+    // FIX: Count anything that starts with "Yes" as Yes (so "Yes/Unlisted", "Yes (varies by site)" etc. are included)
     function isYes(v) {
       const s = safeStr(v);
-      return /^yes\\b/i.test(s);
-    }
-
-    let keyMap = null;
-    function normKey(k) {
-      return String(k || "")
-        .toLowerCase()
-        .replace(/[“”]/g, '"')
-        .replace(/[’]/g, "'")
-        .replace(/\\s+/g, " ")
-        .trim();
-    }
-    function buildKeyMap(row) {
-      const m = new Map();
-      for (const k of Object.keys(row || {})) m.set(normKey(k), k);
-      return m;
-    }
-    function getVal(row, wanted) {
-      if (!row) return "";
-      if (row[wanted] != null) return row[wanted];
-      if (!keyMap) keyMap = buildKeyMap(row);
-      const actual = keyMap.get(normKey(wanted));
-      return actual ? row[actual] : "";
+      return /^yes\b/i.test(s);
     }
 
     function normalizeAddress(addr) {
       let s = safeStr(addr);
       while (true) {
         const before = s;
-        s = s.replace(/\\s*\\([^)]*\\)\\s*$/g, "").trim();
-        s = s.replace(/\\s*\\[[^\\]]*\\]\\s*$/g, "").trim();
+        s = s.replace(/\s*\([^)]*\)\s*$/g, "").trim();
+        s = s.replace(/\s*\[[^\]]*\]\s*$/g, "").trim();
         if (s === before) break;
       }
-      return s.replace(/\\s+/g, " ").trim();
+      return s.replace(/\s+/g, " ").trim();
     }
 
     function escapeHtml(s) {
@@ -219,15 +197,15 @@
       if (typeof v === "number") return Number.isFinite(v) ? v : null;
       const s = safeStr(v);
       if (!s) return null;
-      const m = s.match(/-?\\d+(\\.\\d+)?/);
+      const m = s.match(/-?\d+(\.\d+)?/);
       if (!m) return null;
       const n = Number(m[0]);
       return Number.isFinite(n) ? n : null;
     }
 
     function kindOf(row) {
-      const h = isYes(getVal(row, "Offers hormones (HRT)"));
-      const s = isYes(getVal(row, "Offers surgery"));
+      const h = isYes(row["Offers hormones (HRT)"]);
+      const s = isYes(row["Offers surgery"]);
       if (h && s) return "both";
       if (s) return "surg";
       if (h) return "hrt";
@@ -244,14 +222,14 @@
     const markerById = new Map();
 
     function popupHtml(row) {
-      const name = safeStr(getVal(row, "Provider / Program")) || "(Unnamed)";
-      const borough = safeStr(getVal(row, "Borough"));
-      const addr = normalizeAddress(getVal(row, "Address"));
+      const name = safeStr(row["Provider / Program"]) || "(Unnamed)";
+      const borough = safeStr(row["Borough"]);
+      const addr = normalizeAddress(row["Address"]);
 
-      const hrt = isYes(getVal(row, "Offers hormones (HRT)")) ? "Yes" : "No";
-      const surg = isYes(getVal(row, "Offers surgery")) ? "Yes" : "No";
-      const hrtMinors = isYes(getVal(row, "HRT to minors?")) ? "Yes" : "No";
-      const surgMinors = isYes(getVal(row, "Surgery to minors?")) ? "Yes" : "No";
+      const hrt = isYes(row["Offers hormones (HRT)"]) ? "Yes" : "No";
+      const surg = isYes(row["Offers surgery"]) ? "Yes" : "No";
+      const hrtMinors = isYes(row["HRT to minors?"]) ? "Yes" : "No";
+      const surgMinors = isYes(row["Surgery to minors?"]) ? "Yes" : "No";
 
       const k = kindOf(row);
       const badge =
@@ -261,8 +239,8 @@
 
       return `
         <div style="min-width:240px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
-            <div style="font-weight:800;line-height:1.2">${escapeHtml(name)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
+            <div style="font-weight:800">${escapeHtml(name)}</div>
             ${badge}
           </div>
           <div style="font-size:12px;opacity:.78;margin-bottom:10px">
@@ -290,15 +268,15 @@
 
     function matchesSearch(row, q) {
       if (!q) return true;
-      const name = safeStr(getVal(row, "Provider / Program")).toLowerCase();
-      const borough = safeStr(getVal(row, "Borough")).toLowerCase();
-      const addr = normalizeAddress(getVal(row, "Address")).toLowerCase();
+      const name = safeStr(row["Provider / Program"]).toLowerCase();
+      const borough = safeStr(row["Borough"]).toLowerCase();
+      const addr = normalizeAddress(row["Address"]).toLowerCase();
       return name.includes(q) || borough.includes(q) || addr.includes(q);
     }
 
     function rowId(row, idx) {
-      const name = safeStr(getVal(row, "Provider / Program"));
-      const addr = normalizeAddress(getVal(row, "Address"));
+      const name = safeStr(row["Provider / Program"]);
+      const addr = normalizeAddress(row["Address"]);
       return (name + "|" + addr + "|" + idx).toLowerCase();
     }
 
@@ -329,30 +307,27 @@
       listEl.innerHTML = "";
 
       let shown = 0;
-      let haveKind = 0;
-      let haveCoords = 0;
 
       const sorted = [...rows].sort((a, b) => {
         const order = { both: 3, surg: 2, hrt: 1, "": 0 };
         const ak = kindOf(a) || "";
         const bk = kindOf(b) || "";
         if (order[bk] !== order[ak]) return order[bk] - order[ak];
-        return safeStr(getVal(a, "Provider / Program")).localeCompare(safeStr(getVal(b, "Provider / Program")));
+        return safeStr(a["Provider / Program"]).localeCompare(safeStr(b["Provider / Program"]));
       });
 
       for (let i = 0; i < sorted.length; i++) {
         const row = sorted[i];
-        const k = kindOf(row);
-        if (k) haveKind++;
         if (!passesFilters(row)) continue;
         if (!matchesSearch(row, q)) continue;
 
-        const lat = parseCoord(getVal(row, "Latitude"));
-        const lon = parseCoord(getVal(row, "Longitude"));
-        if (lat == null || lon == null) continue;
-        haveCoords++;
+        const lat = parseCoord(row["Latitude"]);
+        const lon = parseCoord(row["Longitude"]);
+        const coordsOk = (lat != null && lon != null);
+        if (!coordsOk) continue;
 
         const id = rowId(row, i);
+        const k = kindOf(row);
 
         const m = L.marker([lat, lon], { icon: makeDivIcon(k) })
           .bindPopup(popupHtml(row), { maxWidth: 380 });
@@ -360,32 +335,39 @@
         markerById.set(id, m);
         shown++;
 
-        const name = safeStr(getVal(row, "Provider / Program")) || "(Unnamed)";
-        const borough = safeStr(getVal(row, "Borough"));
-        const addr = normalizeAddress(getVal(row, "Address"));
+        const name = safeStr(row["Provider / Program"]) || "(Unnamed)";
+        const borough = safeStr(row["Borough"]);
+        const addr = normalizeAddress(row["Address"]);
 
         const pills = `
-          ${(k === "hrt" || k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-100 font-semibold whitespace-nowrap">HRT</span>` : ""}
-          ${(k === "surg" || k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100 font-semibold whitespace-nowrap">Surgery</span>` : ""}
-          ${(k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200 font-bold whitespace-nowrap">High urgency</span>` : ""}
+          ${(k === "hrt" || k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-100 font-semibold">HRT</span>` : ""}
+          ${(k === "surg" || k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100 font-semibold">Surgery</span>` : ""}
+          ${(k === "both") ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200 font-bold">High urgency</span>` : ""}
         `;
 
         const leftAccent = (k === "both") ? "bg-red-700" : (k === "surg") ? "bg-red-600" : "bg-amber-500";
 
         const item = document.createElement("button");
-        item.className = "w-full text-left rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition";
+        item.className = "w-full text-left rounded-2xl border border-slate-200/70 bg-white/95 shadow-sm hover:shadow-md hover:border-slate-300 transition overflow-hidden focus:outline-none focus:ring-2 focus:ring-slate-300/60";
+
+        const boroughPill = borough
+          ? `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700 font-medium">${escapeHtml(borough)}</span>`
+          : "";
+
         item.innerHTML = `
           <div class="flex">
-            <div class="w-1.5 ${leftAccent} rounded-l-2xl"></div>
-            <div class="flex-1 px-4 py-3 min-w-0">
+            <div class="w-1.5 ${leftAccent}"></div>
+            <div class="flex-1 px-4 py-4 min-h-[92px]">
               <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 pr-1">
-                  <div class="font-semibold text-sm leading-snug clamp-2 break-words">${escapeHtml(name)}</div>
-                  <div class="mt-1 text-xs text-slate-600 clamp-2 break-words">
-                    ${escapeHtml(borough ? borough + " • " : "")}${escapeHtml(addr)}
+                <div class="min-w-0">
+                  <div class="font-semibold text-[15px] leading-snug text-slate-900 line-clamp-2">${escapeHtml(name)}</div>
+                  <div class="mt-1 text-xs text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    ${boroughPill}
+                    ${borough ? `<span class="text-slate-400">•</span>` : ``}
+                    <span class="line-clamp-2">${escapeHtml(addr)}</span>
                   </div>
                 </div>
-                <div class="shrink-0 flex flex-wrap gap-1 justify-end max-w-[44%]">${pills}</div>
+                <div class="shrink-0 flex flex-wrap gap-1 justify-end items-start max-w-[140px]">${pills}</div>
               </div>
             </div>
           </div>
@@ -401,7 +383,6 @@
 
       $("statShown").textContent = shown;
       $("statLoaded").textContent = rows.length;
-      $("debug").textContent = `debug: haveKind=${haveKind}/${rows.length} • haveCoords=${haveCoords}/${rows.length} • shown=${shown}`;
     }
 
     function fitToMarkers() {
@@ -417,7 +398,6 @@
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("Unexpected response: expected an array.");
       rows = data;
-      keyMap = rows.length ? buildKeyMap(rows[0]) : null;
     }
 
     async function loadAll() {
